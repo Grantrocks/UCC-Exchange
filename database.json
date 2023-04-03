@@ -1,0 +1,8 @@
+{
+    "buy":[],
+    "sell":[],
+    "total-orders":0,
+    "active-orders":0,
+    "total-exchanged":0,
+    "credited_transactions":[]
+}
