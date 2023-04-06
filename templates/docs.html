@@ -1,0 +1,23 @@
+<!DOCTYPE HTML>
+<html>
+    <head>
+        <title>Uncracked Coin Exchange</title>
+    </head>
+    <body>
+        <p>We provide completely a anonymous exchange for our currency Uncracked Coin. The API details are below.</p>
+        <p>All data should be sent as JSON.</p>
+        <p>We take a 1% fee on all sell orders.</p>
+        <h3>List of supported buy/sell currencys</h3>
+        <ol>
+            <li>USDT - Tether USD</li>
+            <li>SOL - Solana</li>
+            <li>XNO - NANO</li>
+        </ol>
+        <ul>
+            <li>/buy  -  Create a buy order.<br>FORMAT: {"address":"provide your ucc address","currency":"one of our suppoerted currencys","amount":amount to purchase (integer)","dex":True or False (boolean)}</li>
+            <li>/sell - Sell your UCC for another currency. <br> FORMAT: {"address":"address of the currency you are exhanging ucc for","currency":"one of our supported currencys","payment_address":"address used to send UCC","txid":"transaction id from the UCC blockchain.", "dex":"True or False"}</li>
+            <li>/stats - View information on the UCC currency.</li>
+        </ul>
+        <p>We also support DEX or decentrealized. However that is usually a slower process as your buy/sell orders have to be matched up. Although decentrealized is fee free.</p>
+    </body>
+</html>

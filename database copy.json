@@ -1,0 +1,19 @@
+{
+    "buy": [
+        
+    ],
+    "sell": [
+        
+    ],
+    "pools":[],
+    "total-orders": 0,
+    "active-orders": 0,
+    "total-exchanged": 0,
+    "credited_transactions": [],
+    "coin-info": {
+        "open-orders": 0,
+        "price-usd": 50.0,
+        "total-circulation": 10083.999,
+        "market-cap": 100.83999
+    }
+}
