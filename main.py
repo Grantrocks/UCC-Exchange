@@ -17,7 +17,6 @@ from solathon.core.instructions import transfer
 from solathon import Client, Keypair,PublicKey,Transaction
 client = Client("https://api.devnet.solana.com")
 
-print(client.request_airdrop("EgR6VGYkY12N3u4g1JZSAjCnJZmm58teWXDJzSjHNs7v", 1000000000))
 coin_gecko_ids={"SOL":"solana"}
 
 import hashlib
@@ -196,6 +195,7 @@ def check_orders():
                     )
                     transaction = Transaction(instructions=[instruction], signers=[orderKeys])
                     result = client.send_transaction(transaction)
+                    print(result)
                     if result['result']:
                         key_bytes=codecs.decode(pool['keyPairs']['UCC'],"hex")
                         pub_key = ecdsa.SigningKey.from_string(key_bytes,curve=ecdsa.SECP256k1).verifying_key.to_string()
@@ -213,17 +213,16 @@ def check_orders():
                         byte_address = modified_key_hash + checksum
                         address = base58.b58encode(bytes(byte_address.encode())).decode('utf-8')
 
-                        data_to_sign=hashlib.sha256((pub_key_str+a2+str(a['value'])+""+address+a['address']).encode()).digest()
+                        data_to_sign=hashlib.sha256((pub_key_str+a2+str(a['value']*1000000000)+""+address+a['address']).encode()).digest()
 
                         sk=ecdsa.SigningKey.from_string(key_bytes,curve=ecdsa.SECP256k1)
                         signature=sk.sign_digest(data_to_sign)
                         sig_hex=codecs.encode(signature,"hex").decode()
 
-                        transdata={"scriptSig":{"sig":sig_hex,"pub":pub_key_str},"hashed_pub":a2,"value":a['value'],"message":"","in":address,"out":a['address'],"data":pub_key_str+a2+str(a['value'])+""+address+a['address']}
+                        transdata={"scriptSig":{"sig":sig_hex,"pub":pub_key_str},"hashed_pub":a2,"value":a['value']*1000000000,"message":"","in":address,"out":a['address'],"data":pub_key_str+a2+str(a['value']*1000000000)+""+address+a['address']}
                         url = 'ws://localhost:8000'
                         websocket=connect(url)
                         websocket.send("SEND;"+json.dumps(transdata))
-                        message = websocket.recv()
                         websocket.close()
                         a['completed']=result['result']
                         datab['pools'][pool['id']]["pendingFees"]+=5000
@@ -233,7 +232,9 @@ def check_orders():
         ind+=1      
         if ind>=30:
             break
+    #for a in completed_orders:
+      
 scheduler = APScheduler()
-scheduler.add_job(func=check_orders, args=[], trigger='interval', id='job', seconds=10)
+scheduler.add_job(func=check_orders, args=[], trigger='interval', id='job', seconds=30)
 scheduler.start()
 app.run(host="0.0.0.0",port=4000)
