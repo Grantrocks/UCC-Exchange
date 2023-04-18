@@ -1,4 +1,8 @@
 import json
+
+from filelock import FileLock
+lock = FileLock("database.json.lock",timeout=-1)
+
 from flask import Flask,render_template,request
 from flask_apscheduler import APScheduler
 import uuid
@@ -40,14 +44,16 @@ def get_detais_from_key(key):
   byte_address = modified_key_hash + checksum
   address = base58.b58encode(bytes(byte_address.encode())).decode('utf-8')
   return [key,key,pub_key_str,address]
-
-
-with open("config.json") as f:
-    config=json.load(f)
-with open("database.json") as f:
-    database=json.load(f)
-
+time.sleep(1)
+with lock.acquire():
+    with open("config.json") as f:
+        config=json.load(f)
+    with open("database.json") as f:
+        database=json.load(f)
 def get_demand():
+    with lock.acquire():
+        with open("database.json") as f:
+            database=json.load(f)
     demand=0
     for k in database['buy'].keys():
         a=database["buy"][k]
@@ -56,6 +62,9 @@ def get_demand():
         demand=1
     return demand
 def get_supply():
+    with lock.acquire():
+        with open("database.json") as f:
+            database=json.load(f)
     supply=0.0
     for k in database['pools'].keys():
         a=database["pools"][k]
@@ -79,6 +88,9 @@ def root():
     return render_template("docs.html")
 @app.route("/stats")
 def stats():
+    with lock.acquire():
+        with open("database.json") as f:
+            database=json.load(f)
     url = 'ws://localhost:8000'
     websocket=connect(url)
     websocket.send("GET_SUPPLY")
@@ -92,6 +104,9 @@ def stats():
     return {"price-usd":price,"circulation":circulation,"market-cap":price*circulation}
 @app.post("/open_pool")
 def open_pool():
+    with lock.acquire():
+        with open("database.json") as f:
+            database=json.load(f)
     data=json.loads(request.data)
     pool_data=json.loads(base58.b58decode(data['pool']).decode())
     if not 10000>=pool_data['max']>=10:
@@ -118,13 +133,17 @@ def open_pool():
     pool_data['history']=[]
     pool_data['creationTime']=time.time()
     database['pools'][pool_data['id']]=pool_data
-    with open("database.json","w") as f:
-        json.dump(database,f)
+    with lock.acquire():
+        with open("database.json","w") as f:
+            json.dump(database,f)
     msg="SEND FUNDS TO THE 2 FOLLOWING ADDRESSES"+pool_data['exchangePairs'].split("|")[0]+": "+pool_UCC+"   |   "+pool_data['exchangePairs'].split("|")[1]+": "+pool_TOKEN
     return msg
 
 @app.route("/buy",methods=["POST"])
 def buy():
+    with lock.acquire():
+        with open("database.json") as f:
+            database=json.load(f)
     data=json.loads(request.data)
     order={"address":data['address'],"currency":data['currency'],"value":data['amount']}
     if order['currency']=='SOL':
@@ -156,21 +175,24 @@ def buy():
                 order['pool_id']=a['id']
                 database['buy'][order['id']]=order
                 filled=True
-                with open("database.json","w") as f:
-                    json.dump(database, f)
+                with lock.acquire():
+                    with open("database.json","w") as f:
+                        json.dump(database, f)
                 break
         if not filled:
             order['filled']=False
             order['id']=str(uuid.uuid4())
             database['buy'][order['id']]=order
-            with open("database.json","w") as f:
-                json.dump(database,f)
+            with lock.acquire():
+                with open("database.json","w") as f:
+                    json.dump(database,f)
         return {"result":True,"info":{"pay_amount":order['pay_amount'],"pay_address":order['payAccount']['address']}}
     return {'result':False,"reason":"Currency not available!"}
 
 def check_orders():
-    with open("database.json") as f:
-        datab=json.load(f)
+    with lock.acquire():
+        with open("database.json") as f:
+            datab=json.load(f)
     ind=0
     completed_orders=[]
     changed_pool={}
@@ -213,17 +235,19 @@ def check_orders():
                         byte_address = modified_key_hash + checksum
                         address = base58.b58encode(bytes(byte_address.encode())).decode('utf-8')
 
-                        data_to_sign=hashlib.sha256((pub_key_str+a2+str(a['value']*1000000000)+""+address+a['address']).encode()).digest()
+                        data_to_sign=hashlib.sha256((pub_key_str+a2+str(int(a['value']*1000000000))+""+address+a['address']).encode()).digest()
 
                         sk=ecdsa.SigningKey.from_string(key_bytes,curve=ecdsa.SECP256k1)
                         signature=sk.sign_digest(data_to_sign)
                         sig_hex=codecs.encode(signature,"hex").decode()
 
-                        transdata={"scriptSig":{"sig":sig_hex,"pub":pub_key_str},"hashed_pub":a2,"value":a['value']*1000000000,"message":"","in":address,"out":a['address'],"data":pub_key_str+a2+str(a['value']*1000000000)+""+address+a['address']}
+                        transdata={"scriptSig":{"sig":sig_hex,"pub":pub_key_str},"hashed_pub":a2,"value":int(a['value']*1000000000),"message":"","in":address,"out":a['address'],"data":pub_key_str+a2+str(int(a['value']*1000000000))+""+address+a['address']}
                         url = 'ws://localhost:8000'
                         websocket=connect(url)
                         websocket.send("SEND;"+json.dumps(transdata))
+                        print(websocket.recv())
                         websocket.close()
+                        del a['payAccount']
                         a['completed']=result['result']
                         datab['pools'][pool['id']]["pendingFees"]+=5000
                         datab['pools'][pool['id']]['history'].append(a)
@@ -232,9 +256,21 @@ def check_orders():
         ind+=1      
         if ind>=30:
             break
-    #for a in completed_orders:
-      
+    for b in completed_orders:
+      with lock.acquire():
+        with open("database.json") as f:
+            database=json.load(f)
+        del database['buy'][b['id']]
+        with open("database.json","w") as f:
+            json.dump(database,f)
+    for a in changed_pool.keys():
+        with lock.acquire():
+            with open("database.json") as f:
+                database=json.load(f)
+            database['pools'][a]=changed_pool[a]
+            with open("database.json","w") as f:
+                json.dump(database,f)
 scheduler = APScheduler()
-scheduler.add_job(func=check_orders, args=[], trigger='interval', id='job', seconds=30)
+scheduler.add_job(func=check_orders, args=[], trigger='interval', id='job', seconds=60)
 scheduler.start()
 app.run(host="0.0.0.0",port=4000)
